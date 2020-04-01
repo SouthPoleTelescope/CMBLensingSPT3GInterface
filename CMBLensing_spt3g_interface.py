@@ -1,5 +1,4 @@
 ### initialize PyJulia
-
 import sys
 import julia
 from julia_jlcommand import jl

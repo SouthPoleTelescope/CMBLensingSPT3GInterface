@@ -1,6 +1,7 @@
 using PyCall
 using CMBLensing
-import CMBLensing: FlatMap, unfold, fold
+using CMBLensing: unfold, fold
+import CMBLensing: FlatMap, FlatFourier 
 
 py"""
 from spt3g.core import G3Units
