@@ -1,6 +1,6 @@
 using PyCall
 using CMBLensing
-using CMBLensing: unfold, fold
+using CMBLensing: unfold
 import CMBLensing: FlatMap, FlatFourier 
 
 py"""

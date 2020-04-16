@@ -1,7 +1,7 @@
 ### initialize PyJulia
 import sys
 import julia
-from julia_jlcommand import jl
+from .julia_jlcommand import jl
 
 jl("""
 using CMBLensing
@@ -26,28 +26,62 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
 
 ### Conversion functions
 
-def toMapSpectrum2D(f):
+def to_parent(f):
     """
-    Convert a CMBLensing FlatField to a 3G MapSpectrum2D,
-    applying the appropriate scale factor.
+    Return an empty FlatSkyMap "parent" that can be populated 
+    with pixel values or passed to a MapSpectrum
     """
-    map_nx = jl("fieldinfo($f)").Nside
-    dx     = jl("fieldinfo($f)").θpix*arcmin
-    fft    = jl("unfold(Fourier($f).Il)[:,1:end÷2+1]").copy(order='C')
-    scale_factor = get_fft_scale_fac(dx, map_nx, map_nx)
-
-    return MapSpectrum2D(map_nx, dx, fft / scale_factor)
-
+    fieldinfo = jl("fieldinfo($f)")
+    return FlatSkyMap(
+        x_len       = fieldinfo.Nside,
+        y_len       = fieldinfo.Nside,
+        res         = fieldinfo.Δx,
+        is_weighted = False,
+        proj        = MapProjection.ProjNone,
+    )
 
 def toFlatSkyMap(f):
     """
     Convert a CMBLensing FlatField to a 3G FlatSkyMap.
     """
-    return FlatSkyMap(
-        jl("Map($f).Ix").copy(order='C'),
-        jl("fieldinfo($f)").θpix*arcmin,
-        proj = MapProjection.ProjZEA
-    )
+    parent = to_parent(f)
+    np.asarray(parent)[:] = jl("Map($f).Ix")
+    return parent
+
+def toMapSpectrum2D(f):
+    """
+    Convert a CMBLensing FlatField to a 3G MapSpectrum2D,
+    applying the appropriate scale factor.
+    """
+    parent = to_parent(f)
+    scale_factor = get_fft_scale_fac(parent)
+    fft = jl("unfold(Fourier($f).Il)[:,1:end÷2+1]").copy(order='C')
+    return MapSpectrum2D(parent, fft / scale_factor)
+
+def toFrame(f, keys="TQU", constructor=toFlatSkyMap, mult=uK):
+    """
+    Convert a CMBLensing FieldTuple to a dictionary (a "Frame" in 3G parlance)
+    by calling `constructor` on the FieldTuple indexed by each of the 
+    specified `keys`. By default, this constructs a Frame of TQU FlatSkyMaps,
+    in G3Units.
+    
+    Parameters
+    ----------
+    f: CMBLensing.jl FieldTuple
+        input field to be converted to a Frame.
+    
+    keys["TQU"]: iterable of characters
+        keys of resulting Frame. Must be in "TQUEB".
+        
+    constructor[toFlatSkyMap]: function
+        function used to convert each CMBLensing map to a 3G software
+        object. can be one of [toFlatSkyMap, toMapSpectrum2D].
+    
+    mult[G3Units.uK]: number, ndarray, FlatSkyMap/MapSpectrum2D
+        each value in the output Frame will be multiplied by `mult`.
+        useful for applying units, masking etc. 
+    """
+    return {k : constructor(jl("$f[jl_keys[$k]]")) * mult for k in keys}
 
 def toMapSpectraTEB(f):
     """
@@ -55,14 +89,6 @@ def toMapSpectraTEB(f):
     """
     return MapSpectraTEB(toFrame(f, "TEB", toMapSpectrum2D, uK))
 
-def toFrame(f, keys="TQU", constructor=toFlatSkyMap, units=1):
-    """
-    Convert a CMBLensing FieldTuple to a dictionary (a "Frame" in 3G parlance)
-    by calling `constructor` on the FieldTuple indexed by each of the specified
-    `keys`.
-    By default, this constructs a Frame of TQU FlatSkyMaps.
-    """
-    return {k : constructor(jl("$f[jl_keys[$k]]")) * units for k in keys}
 
 class ObsCMBLensing:
     """
@@ -83,11 +109,11 @@ class ObsCMBLensing:
         self.pixel_mask = jl("diag($self.ds.M.b)[:Qx]")
         self.hash = {} # CinvFilt expects this to exist
 
-    def get_dat_tqu(self, keys="TQU", constructor=toFlatSkyMap):
+    def get_dat_tqu(self):
         """
         Return the data.
         """
-        return toFrame(jl("$self.ds.d"), keys, constructor, uK)
+        return toFrame(jl("$self.ds.d"), "TQU", constructor, uK)
 
 
     def get_sim(self, isim, keys="TQU", constructor=toFlatSkyMap):
