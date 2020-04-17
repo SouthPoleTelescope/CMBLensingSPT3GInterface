@@ -58,7 +58,7 @@ def toMapSpectrum2D(f):
     fft = jl("unfold(Fourier($f).Il)[:,1:end÷2+1]").copy(order='C')
     return MapSpectrum2D(parent, fft / scale_factor)
 
-def toFrame(f, keys="TQU", constructor=toFlatSkyMap, mult=uK):
+def toFrame(f, keys="TQU", constructor=toFlatSkyMap, mult=1):
     """
     Convert a CMBLensing FieldTuple to a dictionary (a "Frame" in 3G parlance)
     by calling `constructor` on the FieldTuple indexed by each of the 
@@ -77,17 +77,17 @@ def toFrame(f, keys="TQU", constructor=toFlatSkyMap, mult=uK):
         function used to convert each CMBLensing map to a 3G software
         object. can be one of [toFlatSkyMap, toMapSpectrum2D].
     
-    mult[G3Units.uK]: number, ndarray, FlatSkyMap/MapSpectrum2D
+    mult[1]: number, ndarray, FlatSkyMap/MapSpectrum2D
         each value in the output Frame will be multiplied by `mult`.
         useful for applying units, masking etc. 
     """
     return {k : constructor(jl("$f[jl_keys[$k]]")) * mult for k in keys}
 
-def toMapSpectraTEB(f):
+def toMapSpectraTEB(f, mult=1):
     """
     Convert a CMBLensing FlatS02 to a 3G MapSpectraTEB.
     """
-    return MapSpectraTEB(toFrame(f, "TEB", toMapSpectrum2D, uK))
+    return MapSpectraTEB(toFrame(f, "TEB", toMapSpectrum2D, mult))
 
 
 class ObsCMBLensing:

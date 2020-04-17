@@ -27,9 +27,9 @@ for k in jl("jl_keys").keys():
 
 # make sure sure that toFrame and toMapSpectraTEB work,
 # and that the two packages' Q/U -> E/B conventions are consistent. 
-tqu = toFrame(f, keys="TQU", constructor=toFlatSkyMap)
+tqu = toFrame(f, keys="TQU", constructor=toFlatSkyMap, mult=uK)
 teb_3g = calculate_teb(tqu)
-teb_cmbl = toMapSpectraTEB(f)
+teb_cmbl = toMapSpectraTEB(f, mult=uK)
 for k in "TEB":
     assert np.allclose(teb_3g[k], teb_cmbl[k], rtol=1e-16, atol=1e-7), \
             "{} made from map-space TQU with calculate_teb is not the same as {} loaded in Fourier space".format(k,k)
