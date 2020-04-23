@@ -35,7 +35,7 @@ def to_parent(f):
     return FlatSkyMap(
         x_len       = fieldinfo.Nside,
         y_len       = fieldinfo.Nside,
-        res         = fieldinfo.Δx,
+        res         = fieldinfo.θpix * G3Units.arcmin,
         is_weighted = False,
         proj        = MapProjection.ProjNone,
     )
