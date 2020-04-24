@@ -54,7 +54,7 @@ def toMapSpectrum2D(f):
     applying the appropriate scale factor.
     """
     parent = to_parent(f)
-    scale_factor = get_fft_scale_fac(parent)
+    scale_factor = get_fft_scale_fac(parent=parent)
     fft = jl("unfold(Fourier($f).Il)[:,1:end÷2+1]").copy(order='C')
     return MapSpectrum2D(parent, fft / scale_factor)
 

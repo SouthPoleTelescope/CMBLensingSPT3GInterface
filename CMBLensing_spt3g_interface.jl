@@ -6,6 +6,7 @@ import CMBLensing: FlatMap, FlatFourier
 py"""
 from spt3g.core import G3Units
 from spt3g.coordinateutils import FlatSkyMap, MapProjection
+from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D
 from spt3g.mapspectra.basicmaputils import get_fft_scale_fac
 """
 
@@ -14,15 +15,14 @@ jl_keys["T"] = :I
 
 function FlatMap(p::PyObject)
     @assert pytypeof(p) == py"FlatSkyMap"
-    FlatMap(py"$p", θpix=rad2deg(py"$p.res")*60)
+    FlatMap(py"$p", θpix=maybe_int(rad2deg(py"$p.res")*60))
 end
 
 function FlatFourier(p::PyObject)
-    error("Not implemented")
     @assert pytypeof(p) == py"MapSpectrum2D"
-    scale_factor = py"get_fft_scale_fac($p.res, $p.map_nx, $p.map_ny)"
-    julia_fft = fold(py"$p")[....] * scale_factor
-    FlatFourier(julia_fft, θpix=py"$p.res / G3Units.arcmin")
+    scale_factor = py"get_fft_scale_fac(parent=$p.parent)"
+    julia_fft = py"$p.get_complex()"[1:end÷2+1,:] * scale_factor
+    FlatFourier(julia_fft, θpix=maybe_int(py"$p.parent.res / G3Units.arcmin"))
 end
 
 function FlatSkyMap(f)
@@ -31,3 +31,8 @@ function FlatSkyMap(f)
 end
 
 MapFrame(f, keys="QU") = py"{k : $(FlatSkyMap(f[jl_keys[k]])) for k in keys}"o
+
+function maybe_int(x)
+    i = round(Int, x)
+    i ≈ x ? i : x
+end
