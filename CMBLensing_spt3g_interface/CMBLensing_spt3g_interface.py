@@ -16,10 +16,7 @@ import numpy as np
 
 ### Load CMBLensing.jl and spt3g
 from spt3g.core import G3Units
-uK = G3Units.uK
-arcmin = G3Units.arcmin
-
-from spt3g.coordinateutils import FlatSkyMap, MapProjection
+from spt3g.maps import MapProjection, FlatSkyMap
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D, MapSpectrum1D
 from spt3g.mapspectra.basicmaputils import get_fft_scale_fac
 from spt3g.lensing.map_spec_utils import MapSpectraTEB
@@ -36,7 +33,7 @@ def to_parent(f):
         x_len       = fieldinfo.Nside,
         y_len       = fieldinfo.Nside,
         res         = fieldinfo.θpix * G3Units.arcmin,
-        is_weighted = False,
+        weighted    = False,
         proj        = MapProjection.ProjNone,
     )
 
@@ -113,7 +110,7 @@ class ObsCMBLensing:
         """
         Return the data.
         """
-        return toFrame(jl("$self.ds.d"), "TQU", constructor, uK)
+        return toFrame(jl("$self.ds.d"), "TQU", constructor, G3Units.uK)
 
 
     def get_sim(self, isim, keys="TQU", constructor=toFlatSkyMap):
@@ -129,7 +126,7 @@ class ObsCMBLensing:
             B * L(ϕ) * f + n
         """)
 
-        return toFrame(d, keys, constructor, uK)
+        return toFrame(d, keys, constructor, G3Units.uK)
 
 
     def get_sim_sky(self, isim, keys="TQU", constructor=toFlatSkyMap):
@@ -145,7 +142,7 @@ class ObsCMBLensing:
             B * L(ϕ) * f
         """)
 
-        return toFrame(d, keys, constructor, uK)
+        return toFrame(d, keys, constructor, G3Units.uK)
 
     get_sim_tqu     = lambda self, i: self.get_sim(i, "TQU")
     get_sim_tqu_sky = lambda self, i: self.get_sim_sky(i, "TQU")
