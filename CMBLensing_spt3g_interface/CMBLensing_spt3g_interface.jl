@@ -5,7 +5,7 @@ import CMBLensing: FlatMap, FlatFourier
 
 py"""
 from spt3g.core import G3Units
-from spt3g.coordinateutils import FlatSkyMap, MapProjection
+from spt3g.maps import FlatSkyMap, MapProjection
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D
 from spt3g.mapspectra.basicmaputils import get_fft_scale_fac
 """
