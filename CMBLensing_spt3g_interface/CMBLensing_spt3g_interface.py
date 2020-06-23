@@ -18,7 +18,7 @@ import numpy as np
 from spt3g.core import G3Units
 from spt3g.maps import MapProjection, FlatSkyMap
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D, MapSpectrum1D
-from spt3g.mapspectra.basicmaputils import get_fft_scale_fac
+from spt3g.mapspectra.basicmaputils import get_fft_scale_fac, map_to_ft
 from spt3g.lensing.map_spec_utils import MapSpectraTEB
 
 ### Conversion functions
@@ -35,6 +35,7 @@ def to_parent(f):
         res         = fieldinfo.θpix * G3Units.arcmin,
         weighted    = False,
         proj        = MapProjection.ProjNone,
+        flat_pol    = True,
     )
 
 def toFlatSkyMap(f):
@@ -42,7 +43,7 @@ def toFlatSkyMap(f):
     Convert a CMBLensing FlatField to a 3G FlatSkyMap.
     """
     parent = to_parent(f)
-    np.asarray(parent)[:] = jl("Map($f).Ix")
+    np.asarray(parent)[:] = jl("Map($f).Ix")#[::-1, :]
     return parent
 
 def toMapSpectrum2D(f):
@@ -50,10 +51,14 @@ def toMapSpectrum2D(f):
     Convert a CMBLensing FlatField to a 3G MapSpectrum2D,
     applying the appropriate scale factor.
     """
+    
     parent = to_parent(f)
     scale_factor = get_fft_scale_fac(parent=parent)
-    fft = jl("unfold(Fourier($f).Il)[:,1:end÷2+1]").copy(order='C')
+    fft = jl("unfold(Fourier($f).Il)[:, 1:end÷2+1]").copy(order='C')
+    flip_idx = fft.shape[1] % 2
+#     fft[flip_idx:, :] = fft[flip_idx:, :][::-1]
     return MapSpectrum2D(parent, fft / scale_factor)
+
 
 def toFrame(f, keys="TQU", constructor=toFlatSkyMap, mult=1):
     """
