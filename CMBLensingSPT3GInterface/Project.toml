@@ -1,0 +1,8 @@
+name = "CMBLensingSPT3GInterface"
+uuid = "116a82d0-f087-4c72-82e4-6913b35bfc1a"
+authors = ["Cail Daley <cailmd2@illinois.edu>"]
+version = "0.1.0"
+
+[deps]
+CMBLensing = "b60c06c0-7e54-11e8-3788-4bd722d65317"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
