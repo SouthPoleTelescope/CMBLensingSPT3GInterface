@@ -14,15 +14,20 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
     @unpack f = load_sim_dataset(θpix=2, Nside=32, T=Float64, pol=:IP)
 
     # CMBLensing fields end up the right type on the Python side
-    @test py"isinstance($(    Map(f[:I])), FlatSkyMap)"
-    @test py"isinstance($(Fourier(f[:I])), MapSpectrum2D)"
+    @test py"isinstance($(       Map(f[:I])), FlatSkyMap)"
+    @test py"isinstance($(   Fourier(f[:I])), MapSpectrum2D)"
+    @test py"isinstance($(IEBFourier(f)),     MapSpectraTEB)"
+    @test py"isinstance($(    IQUMap(f)),     dict)"
     
     # the field is unchanged after a roundtrip jl -> py -> jl
-    @test py"$(    Map(f[:I]))" ≈ Map(f[:I])
-    @test py"$(Fourier(f[:I]))" ≈ Fourier(f[:I])
-    
-    # FlatIEBFourier not auto-converted... should it be? 
-    @test py"isinstance($(MapSpectraTEB(f)), MapSpectraTEB)"
-    @test py"$(IEBFourier(f))" ≈ f
+    @test py"$(       Map(f[:I]))" ≈        Map(f[:I])
+    @test py"$(   Fourier(f[:I]))" ≈    Fourier(f[:I])
+    @test py"$(IEBFourier(f))"     ≈ IEBFourier(f)
+    @test py"$(    IQUMap(f))"     ≈     IQUMap(f)
+
+    # bad conversions throw custom errors
+    @test_throws ErrorException    FlatFourier(PyObject(f))
+    @test_throws ErrorException        FlatMap(PyObject(f))
+    @test_throws ErrorException FlatIEBFourier(PyObject(f[:I]))
 
 end

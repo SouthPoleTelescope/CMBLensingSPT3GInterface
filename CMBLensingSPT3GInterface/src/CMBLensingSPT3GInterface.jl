@@ -20,10 +20,10 @@ function __init__()
     from spt3g.lensing.map_spec_utils import MapSpectraTEB
     0"""
 
-    pytype_mapping(py"FlatSkyMap", FlatMap)
-    pytype_mapping(py"MapSpectrum2D", FlatFourier)
+    pytype_mapping(py"FlatSkyMap",     FlatMap)
+    pytype_mapping(py"MapSpectrum2D",  FlatFourier)
     pytype_mapping(py"MapSpectraTEB ", FlatIEBFourier)
-    pytype_mapping(py"dict", FieldTuple)
+    pytype_mapping(py"dict",           FieldTuple)
 end
 
 Base.getindex(f::FlatField, s::String) = f[s == "T" ? :I : Symbol(s)]
@@ -83,9 +83,9 @@ end
 ### jl -> py
 ############
 """
-    FlatSkyMap(f::FlatField)
+    FlatSkyMap(f::FlatMap)
 
-Convert a CMBLensing FlatField to a 3G FlatSkyMap.
+Convert a CMBLensing FlatMap to a 3G FlatSkyMap.
 """
 function FlatSkyMap(f::FlatMap)
     flatskymap = similar_FlatSkyMap(f)
@@ -104,8 +104,11 @@ PyObject(f::FlatMap) = FlatSkyMap(f)
 ############
 
 function CMBLensing.FlatMap(f::PyObject)
-    @assert pytypeof(f) == py"FlatSkyMap"
-    flipy(FlatMap(py"np.asarray($f)", θpix=get_θpix(f)))
+    if pytypeof(f) == py"FlatSkyMap"
+        flipy(FlatMap(py"np.asarray($f)", θpix=get_θpix(f)))
+    else
+        error("Can't convert a Python object of type $(pytypeof(f)) to a FlatMap.")
+    end
 end
 
 Base.convert(::Type{FlatMap}, f::PyObject) = FlatMap(f)
@@ -117,10 +120,9 @@ Base.convert(::Type{FlatMap}, f::PyObject) = FlatMap(f)
 ### jl -> py
 ############
 """
-    MapSpectrum2D(f::FlatField)
+    MapSpectrum2D(f::FlatFourier)
 
-Convert a CMBLensing FlatField to a 3G MapSpectrum2D,
-applying the appropriate scale factor.
+Convert a CMBLensing FlatFourier to a 3G MapSpectrum2D.
 """
 function MapSpectrum2D(f::FlatFourier)
     parent = similar_FlatSkyMap(f)
@@ -134,10 +136,13 @@ PyObject(f::FlatFourier) = MapSpectrum2D(f)
 ############
 
 function CMBLensing.FlatFourier(f::PyObject)
-    @assert pytypeof(f) == py"MapSpectrum2D"
-    scale_fac = py"get_fft_scale_fac(parent=$f.parent)"
-    Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] * scale_fac
-    flipy(FlatFourier(Il, θpix=get_θpix(py"$f.parent"o)))
+    if pytypeof(f) == py"MapSpectrum2D"
+        scale_fac = py"get_fft_scale_fac(parent=$f.parent)"
+        Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] * scale_fac
+        flipy(FlatFourier(Il, θpix=get_θpix(py"$f.parent"o)))
+    else
+        error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
+    end
 end
 Base.convert(::Type{FlatFourier}, f::PyObject) = FlatFourier(f)
 
@@ -186,10 +191,13 @@ end
 # default keys for various FieldTuples
 Frame(f::FlatIEB) = Frame(f, "TEB")
 Frame(f::FlatIQU) = Frame(f, "TQU")
-Frame(f::FlatEB) = Frame(f, "EB")
-Frame(f::FlatQU) = Frame(f, "QU")
+Frame(f::FlatEB)  = Frame(f, "EB")
+Frame(f::FlatQU)  = Frame(f, "QU")
 
-PyObject(f::FieldTuple) = Frame(f)
+# MapSpectraTEB is the only FieldTuple-like object on the 3G side which has its
+# own type. for everything else, convert to generic "Frame" which is just a dict
+PyObject(f::FlatIEBFourier) = MapSpectraTEB(f)
+PyObject(f::FieldTuple)     = Frame(f)
 
 ### py -> jl
 ############
@@ -230,9 +238,15 @@ end
 
 ### py -> jl
 ############
-function Base.convert(::Type{FlatIEBFourier}, f::PyObject)
-    @assert pytypeof(f) == py"MapSpectraTEB"
-    FlatIEBFourier(py"[$f[k] for k in 'TEB']"...)
+
+function CMBLensing.FlatIEBFourier(f::PyObject)
+    if pytypeof(f) == py"MapSpectraTEB"
+        FlatIEBFourier(py"[$f[k] for k in 'TEB']"...)
+    else
+        error("Can't convert a Python object of type $(pytypeof(f)) to a FlatIEBFourier.")
+    end
 end
+
+Base.convert(::Type{FlatIEBFourier}, f::PyObject) = FlatIEBFourier(f)
 
 end # module
