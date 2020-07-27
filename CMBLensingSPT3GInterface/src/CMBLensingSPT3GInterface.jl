@@ -104,7 +104,7 @@ PyObject(f::FlatMap) = FlatSkyMap(f)
 ############
 
 function CMBLensing.FlatMap(f::PyObject)
-    if pytypeof(f) == py"FlatSkyMap"
+    if pyisinstance(f, py"FlatSkyMap")
         flipy(FlatMap(py"np.asarray($f)", θpix=get_θpix(f)))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatMap.")
@@ -136,7 +136,7 @@ PyObject(f::FlatFourier) = MapSpectrum2D(f)
 ############
 
 function CMBLensing.FlatFourier(f::PyObject)
-    if pytypeof(f) == py"MapSpectrum2D"
+    if pyisinstance(f, py"MapSpectrum2D")
         scale_fac = py"get_fft_scale_fac(parent=$f.parent)"
         Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] * scale_fac
         flipy(FlatFourier(Il, θpix=get_θpix(py"$f.parent"o)))
@@ -240,7 +240,7 @@ end
 ############
 
 function CMBLensing.FlatIEBFourier(f::PyObject)
-    if pytypeof(f) == py"MapSpectraTEB"
+    if pyisinstance(f, py"MapSpectraTEB")
         FlatIEBFourier(py"[$f[k] for k in 'TEB']"...)
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatIEBFourier.")
@@ -248,5 +248,45 @@ function CMBLensing.FlatIEBFourier(f::PyObject)
 end
 
 Base.convert(::Type{FlatIEBFourier}, f::PyObject) = FlatIEBFourier(f)
+
+
+
+
+# This following is needed for PyCall versions before
+# https://github.com/JuliaPy/PyCall.jl/pull/792 is merged
+
+using Pkg
+using PyCall: TypeTuple, pytype_queries, pyint_query, npy_bool, 
+    pyfloat_query, pycomplex_query, pystring_query, pyfunction_query, 
+    pydate_query, pydict_query, pyptr_query, pysequence_query, 
+    pynothing_query, pymp_query, @return_not_None
+
+if Pkg.dependencies()[Base.PkgId(PyCall).uuid].git_revision != "pytype_mapping_prec"
+
+    function PyCall.pytype_query(o::PyObject, default::TypeTuple=PyObject)
+        # TODO: Use some kind of hashtable (e.g. based on PyObject_Type(o)).
+        #       (A bit tricky to correctly handle Tuple and other containers.)
+        for (py,jl) in pytype_queries
+            if pyisinstance(o, py)
+                return jl
+            end
+        end
+        @return_not_None pyint_query(o)
+        pyisinstance(o, npy_bool) && return Bool
+        @return_not_None pyfloat_query(o)
+        @return_not_None pycomplex_query(o)
+        @return_not_None pystring_query(o)
+        @return_not_None pyfunction_query(o)
+        @return_not_None pydate_query(o)
+        @return_not_None pydict_query(o)
+        @return_not_None pyptr_query(o)
+        @return_not_None pysequence_query(o)
+        @return_not_None pynothing_query(o)
+        @return_not_None pymp_query(o)
+        return default
+    end
+
+end
+
 
 end # module

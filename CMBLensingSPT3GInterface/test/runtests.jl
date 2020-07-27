@@ -11,7 +11,7 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
 
 @testset "Conversions (Nside=$Nside)" for Nside=[32,33]
 
-    @unpack f = load_sim_dataset(θpix=2, Nside=32, T=Float64, pol=:IP)
+    f = FlatIQUMap(rand(Nside,Nside),rand(Nside,Nside),rand(Nside,Nside),θpix=2)
 
     # CMBLensing fields end up the right type on the Python side
     @test py"isinstance($(       Map(f[:I])), FlatSkyMap)"
