@@ -1,4 +1,4 @@
 
 from .julia_jlcommand import jl
 import julia.CMBLensingSPT3GInterface
-jl("using CMBLensing")
+jl("using CMBLensing, CMBLensingSPT3GInterface")

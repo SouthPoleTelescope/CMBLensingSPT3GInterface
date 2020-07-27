@@ -1,27 +1,23 @@
 module CMBLensingSPT3GInterface
 
-export FlatSkyMap, Frame, MapSpectraTEB, MapSpectrum2D, @py_str
+export FlatSkyMap, Frame, MapSpectraTEB, MapSpectrum2D, @py_str, unitless
 
 using PyCall
 using CMBLensing
 using CMBLensing: unfold, FlatIEB, FlatIQU
 using AbstractFFTs
+using Lazy
 
-function __init__()
-    py"""
-    import numpy as np
-    from spt3g.core import G3Units
-    from spt3g.maps import MapProjection, FlatSkyMap, MapPolConv
-    from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D, MapSpectrum1D
-    from spt3g.mapspectra.basicmaputils import get_fft_scale_fac, map_to_ft
-    from spt3g.lensing.map_spec_utils import MapSpectraTEB
-    0"""
+@init py"""
+import numpy as np
+from spt3g.core import G3Units
+from spt3g.maps import MapProjection, FlatSkyMap, MapPolConv
+from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D, MapSpectrum1D
+from spt3g.mapspectra.basicmaputils import get_fft_scale_fac, map_to_ft
+from spt3g.lensing.map_spec_utils import MapSpectraTEB
+"""
+@init global μK = py"G3Units.uK"
 
-    pytype_mapping(py"FlatSkyMap",     FlatMap)
-    pytype_mapping(py"MapSpectrum2D",  FlatFourier)
-    pytype_mapping(py"MapSpectraTEB ", FlatIEBFourier)
-    pytype_mapping(py"dict",           FieldTuple)
-end
 
 Base.getindex(f::FlatField, s::String) = f[s == "T" ? :I : Symbol(s)]
 
@@ -74,40 +70,52 @@ function get_θpix(f::PyObject)
 end
 
 
+# wraps a CMBLensing field and indicates that auto-conversion of this object is
+# to assume that the field is unitless, i.e. `units=1`
+struct Unitless{F}
+    f::F
+end
+unitless(f) = Unitless(f)
+
+
+
 ### FlatMap <--> FlatSkyMap
 ###########################
 
 ### jl -> py
 ############
 """
-    FlatSkyMap(f::FlatMap)
+    FlatSkyMap(f::FlatMap; units=uK)
 
-Convert a CMBLensing FlatMap to a 3G FlatSkyMap.
+Convert a CMBLensing FlatMap to a 3G FlatSkyMap. The FlatMap is assumed to have
+units given by `units`. 
 """
-function FlatSkyMap(f::FlatMap)
+function FlatSkyMap(f::FlatMap; units=μK)
     flatskymap = similar_FlatSkyMap(f)
 
     py"""
-    np.asarray($flatskymap)[:] = $(flipy(f).Ix)
+    np.asarray($flatskymap)[:] = $(flipy(f).Ix * units)
     0"""
 
     flatskymap
 end
-PyCall.PyObject(f::FlatMap) = FlatSkyMap(f)
 
+PyCall.PyObject(f::FlatMap; kwargs...) = FlatSkyMap(f, kwargs...)
+PyCall.PyObject(u::Unitless{<:FlatMap}) = FlatSkyMap(u.f, units=1)
 
 
 ### py -> jl
 ############
 
-function CMBLensing.FlatMap(f::PyObject)
+function CMBLensing.FlatMap(f::PyObject; units=μK)
     if pyisinstance(f, py"FlatSkyMap")
-        flipy(FlatMap(py"np.asarray($f)", θpix=get_θpix(f)))
+        flipy(FlatMap(py"np.asarray($f)" / units, θpix=get_θpix(f)))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatMap.")
     end
 end
 
+@init pytype_mapping(py"FlatSkyMap", FlatMap)
 Base.convert(::Type{FlatMap}, f::PyObject) = FlatMap(f)
 
 
@@ -119,103 +127,98 @@ Base.convert(::Type{FlatMap}, f::PyObject) = FlatMap(f)
 """
     MapSpectrum2D(f::FlatFourier)
 
-Convert a CMBLensing FlatFourier to a 3G MapSpectrum2D.
+Convert a CMBLensing FlatFourier to a 3G MapSpectrum2D. 
 """
-function MapSpectrum2D(f::FlatFourier)
+function MapSpectrum2D(f::FlatFourier; units=nothing)
     parent = similar_FlatSkyMap(f)
-    scale_fac = py"get_fft_scale_fac(parent=$parent)"
-    Il = unfold(flipy(f).Il)[:,1:end÷2+1] / scale_fac
+    if units == nothing
+        units = 1/py"get_fft_scale_fac(parent=$parent)"
+    end
+    Il = unfold(flipy(f).Il)[:,1:end÷2+1] * units
     py"MapSpectrum2D($parent, $Il)"o
 end
-PyCall.PyObject(f::FlatFourier) = MapSpectrum2D(f)
+
+PyCall.PyObject(f::FlatFourier; kwargs...) = MapSpectrum2D(f; kwargs...)
+PyCall.PyObject(u::Unitless{<:FlatFourier}) = MapSpectrum2D(u.f, units=1)
+
 
 ### py -> jl
 ############
 
-function CMBLensing.FlatFourier(f::PyObject)
+function CMBLensing.FlatFourier(f::PyObject; units=nothing)
     if pyisinstance(f, py"MapSpectrum2D")
-        scale_fac = py"get_fft_scale_fac(parent=$f.parent)"
-        Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] * scale_fac
+        if units == nothing
+            units = 1/py"get_fft_scale_fac(parent=$f.parent)"
+        end
+        Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / scale_fac
         flipy(FlatFourier(Il, θpix=get_θpix(py"$f.parent"o)))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
     end
 end
+
+@init pytype_mapping(py"MapSpectrum2D", FlatFourier)
 Base.convert(::Type{FlatFourier}, f::PyObject) = FlatFourier(f)
 
 
-### FieldTuple <--> FieldTuple
-###############################
+### Union{FlatS2,FlatS02} <--> Frame
+####################################
 
+F_pykey_mapping = Dict(
+    FlatQUFourier   =>      ("Q", "U"),
+    FlatQUMap       =>      ("Q", "U"),
+    FlatEBFourier   =>      ("E", "B"),
+    FlatEBMap       =>      ("E", "B"),
+    FlatIQUFourier  => ("T", "Q", "U"),
+    FlatIQUMap      => ("T", "Q", "U"),
+    FlatIEBFourier  => ("T", "E", "B"),
+    FlatIEBMap      => ("T", "E", "B")
+)
+function pykeys(f::Union{FlatS2,FlatS02})
+    for (F,pykeys) in F_pykey_mapping
+        f isa F && return pykeys
+    end
+end
 
 ### jl -> py
 ############
+
 """
-    Frame(f::FieldTuple, keys, constructor::Function=identity; mult=1)
+    Frame(f::Union{FlatS2,FlatS02}, keys=pykeys(f))
 
-Convert a CMBLensing FieldTuple to a dictionary (a "Frame" in 3G parlance)
-by calling `constructor` on the FieldTuple indexed by each of the
-specified `keys`. An optional multiplicative factor `mult` may also be applied.
-If the constructor is not specified, the output frame will be in the same basis
-as the FieldTuple.
-
-Parameters
-----------
-f: CMBLensing.jl FieldTuple
-    input field to be converted to a Frame.
-
-keys["TQU"]: iterable of characters
-    keys of resulting Frame. Must be in "TQUEB".
-
-constructor[toFlatSkyMap]: function
-    function used to convert each CMBLensing map to a 3G software
-    object. can be one of [toFlatSkyMap, toMapSpectrum2D].
-
-mult[1]: number, ndarray, FlatSkyMap/MapSpectrum2D
-    each value in the output Frame will be multiplied by `mult`.
-    useful for applying units, masking etc.
+Convert a CMBLensing FlatS2 or FlatS02 to a 3G Frame (i.e. a dict). If `keys` is
+supplied, should be some subset of "TEBQU" to include in the dict. 
 """
-
-# full constructor
-function Frame(f::FieldTuple, keys)
+function Frame(f::Union{FlatS2,FlatS02}, keys=pykeys(f); kwargs...)
     frame = py"{}"o
     for k in (string(k) for k in keys)
-        set!(frame, k, f[k])
+        set!(frame, k, PyObject(f[k]; kwargs...))
     end
     frame
 end
 
-# default keys for various FieldTuples
-Frame(f::FlatIEB) = Frame(f, "TEB")
-Frame(f::FlatIQU) = Frame(f, "TQU")
-Frame(f::FlatEB)  = Frame(f, "EB")
-Frame(f::FlatQU)  = Frame(f, "QU")
-
-# MapSpectraTEB is the only FieldTuple-like object on the 3G side which has its
-# own type. for everything else, convert to generic "Frame" which is just a dict
-PyCall.PyObject(f::FlatIEBFourier) = MapSpectraTEB(f)
-PyCall.PyObject(f::FieldTuple)     = Frame(f)
+# FlatIEBFourier is the only FieldTuple-like object which has a
+# corresponding type on the 3G side (ie a MapSpectraTEB)
+PyCall.PyObject(f::FlatIEBFourier; kwargs...)  = MapSpectraTEB(f; kwargs...)
+PyCall.PyObject(u::Unitless{<:FlatIEBFourier}) = MapSpectraTEB(u.f, units=1)
+# for everything else, convert to generic "Frame" which is just a dict
+PyCall.PyObject(f::Union{FlatS2,FlatS02}; kwargs...)  = Frame(f; kwargs...)
+PyCall.PyObject(u::Unitless{<:Union{FlatS2,FlatS02}}) = Frame(u.f, units=1)
 
 ### py -> jl
 ############
 
+# note: we are stealing the pytype_mapping for _all_ dicts here, so make sure to
+# fall back to default behavior if the dict wasn't actually a frame, i.e. didn't
+# contain any 3G field objects.
+@init pytype_mapping(py"dict", FieldTuple)
 function Base.convert(::Type{FieldTuple}, frame::PyObject)
-    for (F, pykeys) in [
-        (FlatQUFourier,       ("Q", "U")),
-        (FlatQUMap,           ("Q", "U")),
-        (FlatEBFourier,       ("E", "B")),
-        (FlatEBMap,           ("E", "B")),
-        (FlatIQUFourier, ("T", "Q", "U")),
-        (FlatIQUMap,     ("T", "Q", "U")),
-        (FlatIEBFourier, ("T", "E", "B")),
-        (FlatIEBMap,     ("T", "E", "B"))]
-
+    for (F, pykeys) in F_pykey_mapping
         F3G = (F <: FlatFieldMap) ? py"FlatSkyMap" : py"MapSpectrum2D"
         if py"all(type(f) == $F3G for f in $frame.values())" && py"sorted($frame) == sorted($pykeys)"
             return F(py"[$frame[k] for k in $pykeys]"...)
         end
     end
-
     copy(PyDict(frame))
 end
 
@@ -228,8 +231,8 @@ end
 """
 Convert a CMBLensing FlatS02 to a 3G MapSpectraTEB.
 """
-function MapSpectraTEB(f::FlatIEBFourier)
-    frame = Frame(f, "TEB")
+function MapSpectraTEB(f::FlatIEBFourier; kwargs...)
+    frame = Frame(f; kwargs...)
     py"MapSpectraTEB($frame)"o
 end
 
@@ -244,6 +247,7 @@ function CMBLensing.FlatIEBFourier(f::PyObject)
     end
 end
 
+@init pytype_mapping(py"MapSpectraTEB ", FlatIEBFourier)
 Base.convert(::Type{FlatIEBFourier}, f::PyObject) = FlatIEBFourier(f)
 
 
