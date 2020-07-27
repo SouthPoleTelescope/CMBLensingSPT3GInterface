@@ -1,11 +1,8 @@
 module CMBLensingSPT3GInterface
 
-export similar_FlatSkyMap, Frame, MapSpectraTEB
-export @py_str
-
+export FlatSkyMap, Frame, MapSpectraTEB, MapSpectrum2D, @py_str
 
 using PyCall
-import PyCall: PyObject
 using CMBLensing
 using CMBLensing: unfold, FlatIEB, FlatIQU
 using AbstractFFTs
@@ -96,7 +93,7 @@ function FlatSkyMap(f::FlatMap)
 
     flatskymap
 end
-PyObject(f::FlatMap) = FlatSkyMap(f)
+PyCall.PyObject(f::FlatMap) = FlatSkyMap(f)
 
 
 
@@ -130,7 +127,7 @@ function MapSpectrum2D(f::FlatFourier)
     Il = unfold(flipy(f).Il)[:,1:end÷2+1] / scale_fac
     py"MapSpectrum2D($parent, $Il)"o
 end
-PyObject(f::FlatFourier) = MapSpectrum2D(f)
+PyCall.PyObject(f::FlatFourier) = MapSpectrum2D(f)
 
 ### py -> jl
 ############
@@ -196,8 +193,8 @@ Frame(f::FlatQU)  = Frame(f, "QU")
 
 # MapSpectraTEB is the only FieldTuple-like object on the 3G side which has its
 # own type. for everything else, convert to generic "Frame" which is just a dict
-PyObject(f::FlatIEBFourier) = MapSpectraTEB(f)
-PyObject(f::FieldTuple)     = Frame(f)
+PyCall.PyObject(f::FlatIEBFourier) = MapSpectraTEB(f)
+PyCall.PyObject(f::FieldTuple)     = Frame(f)
 
 ### py -> jl
 ############
