@@ -54,7 +54,7 @@ python> jl("FlatMap(rand(10,10))")
 <spt3g.maps.FlatSkyMap at 0x7fee41d26180>
 ```
 
-The conversion always assumes that maps are in μK units, and Fourier transforms are in 1/μK units. If instead the field is unitless (for the example, if the field represents a mask whose values may lie between 0 and 1), wrap the field in `unitless` before conversion, e.g.:
+CMBLensing.jl fields do not currently track their units. By default, the conversion always assumes that these fields are in μK units, and Fourier transforms are in 1/μK units. If instead the field is unitless (for the example, if the field represents a mask whose values may lie between 0 and 1), wrap the field in `unitless` before conversion, e.g.:
 
 
 ```python
@@ -62,6 +62,7 @@ python> jl("unitless(FlatMap(rand(10,10)))")
 <spt3g.maps.FlatSkyMap at 0x7fee41d26180>
 ```
 
+In the other direction, spt3g_software fields _do_ track their units (in `FlatSkyMap.units`), so no such manual wrapper like `unitless` is needed.
 
 
 

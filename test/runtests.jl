@@ -19,11 +19,17 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
     @test py"isinstance($(IEBFourier(f)),     MapSpectraTEB)"
     @test py"isinstance($(    IQUMap(f)),     dict)"
     
-    # the field is unchanged after a roundtrip jl -> py -> jl
+    # the field is unchanged after a roundtrip jl -> py -> jl, 
+    # both when converted in μK units:
     @test py"$(       Map(f[:I]))" ≈        Map(f[:I])
     @test py"$(   Fourier(f[:I]))" ≈    Fourier(f[:I])
     @test py"$(IEBFourier(f))"     ≈ IEBFourier(f)
     @test py"$(    IQUMap(f))"     ≈     IQUMap(f)
+    # or unitless:
+    @test py"$(unitless(       Map(f[:I])))" ≈        Map(f[:I])
+    @test py"$(unitless(   Fourier(f[:I])))" ≈    Fourier(f[:I])
+    @test py"$(unitless(IEBFourier(f)))"     ≈ IEBFourier(f)
+    @test py"$(unitless(    IQUMap(f)))"     ≈     IQUMap(f)
 
     # bad conversions throw custom errors
     @test_throws ErrorException    FlatFourier(PyObject(f))

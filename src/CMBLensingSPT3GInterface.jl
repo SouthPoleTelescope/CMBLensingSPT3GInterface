@@ -10,13 +10,14 @@ using Lazy
 
 @init py"""
 import numpy as np
-from spt3g.core import G3Units
+from spt3g.core import G3Units, G3TimestreamUnits
 from spt3g.maps import MapProjection, FlatSkyMap, MapPolConv
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D, MapSpectrum1D
 from spt3g.mapspectra.basicmaputils import get_fft_scale_fac, map_to_ft
 from spt3g.lensing.map_spec_utils import MapSpectraTEB
 """
 @init global μK = py"G3Units.uK"
+@init global Tcmb = py"G3TimestreamUnits.Tcmb"
 
 
 Base.getindex(f::FlatField, s::String) = f[s == "T" ? :I : Symbol(s)]
@@ -28,7 +29,7 @@ Base.getindex(f::FlatField, s::String) = f[s == "T" ? :I : Symbol(s)]
 Return an empty FlatSkyMap with metadata similar to `f` that can be
 populated with pixel values or passed to a MapSpectrum as the "parent".
 """
-function similar_FlatSkyMap(f::FlatField)
+function similar_FlatSkyMap(f::FlatField; units)
 
     @unpack Nside, θpix = fieldinfo(f)
 
@@ -40,7 +41,8 @@ function similar_FlatSkyMap(f::FlatField)
         weighted    = False,
         proj        = MapProjection.ProjNone,
         flat_pol    = True,
-        pol_conv    = MapPolConv.IAU
+        pol_conv    = MapPolConv.IAU,
+        units       = None if $units == 1 else G3TimestreamUnits.Tcmb
     )"""
 
     py"parent"o
@@ -85,30 +87,29 @@ unitless(f) = Unitless(f)
 ### jl -> py
 ############
 """
-    FlatSkyMap(f::FlatMap; units=uK)
+    FlatSkyMap(f::FlatMap; units=μK)
 
 Convert a CMBLensing FlatMap to a 3G FlatSkyMap. The FlatMap is assumed to have
 units given by `units`. 
 """
 function FlatSkyMap(f::FlatMap; units=μK)
-    flatskymap = similar_FlatSkyMap(f)
-
-    py"""
-    np.asarray($flatskymap)[:] = $(flipy(f).Ix * units)
-    0"""
-
+    flatskymap = similar_FlatSkyMap(f, units=units)
+    py"np.copyto(np.asarray($flatskymap), $(flipy(f).Ix * units))"
     flatskymap
 end
 
-PyCall.PyObject(f::FlatMap; kwargs...) = FlatSkyMap(f, kwargs...)
+PyCall.PyObject(f::FlatMap; kwargs...) = FlatSkyMap(f; kwargs...)
 PyCall.PyObject(u::Unitless{<:FlatMap}) = FlatSkyMap(u.f, units=1)
 
 
 ### py -> jl
 ############
 
-function CMBLensing.FlatMap(f::PyObject; units=μK)
+function CMBLensing.FlatMap(f::PyObject; units=nothing)
     if pyisinstance(f, py"FlatSkyMap")
+        if units == nothing
+            units = (py"$f.units" == Tcmb) ? μK : 1
+        end
         flipy(FlatMap(py"np.asarray($f)" / units, θpix=get_θpix(f)))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatMap.")
@@ -130,9 +131,12 @@ Base.convert(::Type{FlatMap}, f::PyObject) = FlatMap(f)
 Convert a CMBLensing FlatFourier to a 3G MapSpectrum2D. 
 """
 function MapSpectrum2D(f::FlatFourier; units=nothing)
-    parent = similar_FlatSkyMap(f)
+    parent = similar_FlatSkyMap(f, units=units)
     if units == nothing
         units = 1/py"get_fft_scale_fac(parent=$parent)"
+        py"""
+        parent.units = G3TimestreamUnits.Tcmb
+        0"""
     end
     Il = unfold(flipy(f).Il)[:,1:end÷2+1] * units
     py"MapSpectrum2D($parent, $Il)"o
@@ -148,9 +152,9 @@ PyCall.PyObject(u::Unitless{<:FlatFourier}) = MapSpectrum2D(u.f, units=1)
 function CMBLensing.FlatFourier(f::PyObject; units=nothing)
     if pyisinstance(f, py"MapSpectrum2D")
         if units == nothing
-            units = 1/py"get_fft_scale_fac(parent=$f.parent)"
+            units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
-        Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / scale_fac
+        Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / units
         flipy(FlatFourier(Il, θpix=get_θpix(py"$f.parent"o)))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
