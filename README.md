@@ -65,7 +65,6 @@ python> jl("unitless(FlatMap(rand(10,10)))")
 In the other direction, spt3g_software fields _do_ track their units (in `FlatSkyMap.units`), so no such manual wrapper like `unitless` is needed.
 
 
-
 ## Notes
 
 If you get a method redefinition warning (which is harmless, but annoying), you can get rid of it by doing 
