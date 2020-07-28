@@ -50,22 +50,6 @@ function similar_FlatSkyMap(f::FlatField; units)
 end
 
 
-"""
-    flipy(f)
-
-Flip a field in the y-direction.
-"""
-function flipy(f::F) where {F<:FlatMap}
-    F(f.Ix[end:-1:1,:])
-end
-function flipy(f::F) where {N,F<:FlatFourier{<:Flat{N}}}
-    # equivalent of shift by 1 map pixel in y direction
-    shift = @. exp(2π * im * $(0:N÷2) / N)
-    # for each Fourier frequency, the index of the negative frequency
-    negky = circshift(ifftshift(reverse(fftshift(1:N))), iseven(N) ? 1 : 0)[1:end÷2+1]
-    F(unfold(f.Il)[negky,:] .* shift)
-end
-
 function get_θpix(f::PyObject)
     θpix = py"$f.res/G3Units.arcmin"
     θpix ≈ round(Int,θpix) ? round(Int,θpix) : θ
@@ -94,7 +78,7 @@ units given by `units`.
 """
 function FlatSkyMap(f::FlatMap; units=μK)
     flatskymap = similar_FlatSkyMap(f, units=units)
-    py"np.copyto(np.asarray($flatskymap), $(flipy(f).Ix * units))"
+    py"np.copyto(np.asarray($flatskymap), $(f.Ix * units))"
     flatskymap
 end
 
@@ -110,7 +94,7 @@ function CMBLensing.FlatMap(f::PyObject; units=nothing)
         if units == nothing
             units = (py"$f.units" == Tcmb) ? μK : 1
         end
-        flipy(FlatMap(py"np.asarray($f)" / units, θpix=get_θpix(f)))
+        FlatMap(py"np.asarray($f)" / units, θpix=get_θpix(f))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatMap.")
     end
@@ -138,7 +122,7 @@ function MapSpectrum2D(f::FlatFourier; units=nothing)
         parent.units = G3TimestreamUnits.Tcmb
         0"""
     end
-    Il = unfold(flipy(f).Il)[:,1:end÷2+1] * units
+    Il = unfold(f.Il)[:,1:end÷2+1] * units
     py"MapSpectrum2D($parent, $Il.copy(order='C'))"o
 end
 
@@ -155,7 +139,7 @@ function CMBLensing.FlatFourier(f::PyObject; units=nothing)
             units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
         Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / units
-        flipy(FlatFourier(Il, θpix=get_θpix(py"$f.parent"o)))
+        FlatFourier(Il, θpix=get_θpix(py"$f.parent"o))
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
     end
@@ -196,7 +180,7 @@ supplied, should be some subset of "TEBQU" to include in the dict.
 function Frame(f::Union{FlatS2,FlatS02}, keys=pykeys(f); kwargs...)
     frame = py"{}"o
     for k in (string(k) for k in keys)
-        set!(frame, k, PyObject(f[k] * (k=="U" ? -1 : 1); kwargs...))
+        set!(frame, k, PyObject(f[k]; kwargs...))
     end
     frame
 end
@@ -220,7 +204,7 @@ function Base.convert(::Type{FieldTuple}, frame::PyObject)
     for (F, pykeys) in F_pykey_mapping
         F3G = (F <: FlatFieldMap) ? py"FlatSkyMap" : py"MapSpectrum2D"
         if py"all(type(f) == $F3G for f in $frame.values())" && py"sorted($frame) == sorted($pykeys)"
-            return F(py"[$frame[k] * (-1 if k=='U' else 1) for k in $pykeys]"...)
+            return F(py"[$frame[k] for k in $pykeys]"...)
         end
     end
     copy(PyDict(frame))
