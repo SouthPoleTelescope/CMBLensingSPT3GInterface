@@ -1,0 +1,14 @@
+name = "CMBLensingSPT3GInterface"
+uuid = "116a82d0-f087-4c72-82e4-6913b35bfc1a"
+authors = ["Cail Daley <cailmd2@illinois.edu>"]
+version = "0.1.0"
+
+[deps]
+AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+CMBLensing = "b60c06c0-7e54-11e8-3788-4bd722d65317"
+Lazy = "50d2b5c4-7a5e-59d5-8109-a42b560f39c0"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+
+[compat]
+julia = "1.4"
