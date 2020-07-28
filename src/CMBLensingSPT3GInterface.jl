@@ -196,7 +196,7 @@ supplied, should be some subset of "TEBQU" to include in the dict.
 function Frame(f::Union{FlatS2,FlatS02}, keys=pykeys(f); kwargs...)
     frame = py"{}"o
     for k in (string(k) for k in keys)
-        set!(frame, k, PyObject(f[k]; kwargs...))
+        set!(frame, k, PyObject(f[k] * (k=="U" ? -1 : 1); kwargs...))
     end
     frame
 end
@@ -220,7 +220,7 @@ function Base.convert(::Type{FieldTuple}, frame::PyObject)
     for (F, pykeys) in F_pykey_mapping
         F3G = (F <: FlatFieldMap) ? py"FlatSkyMap" : py"MapSpectrum2D"
         if py"all(type(f) == $F3G for f in $frame.values())" && py"sorted($frame) == sorted($pykeys)"
-            return F(py"[$frame[k] for k in $pykeys]"...)
+            return F(py"[$frame[k] * (-1 if k=='U' else 1) for k in $pykeys]"...)
         end
     end
     copy(PyDict(frame))
