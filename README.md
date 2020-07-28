@@ -54,6 +54,15 @@ python> jl("FlatMap(rand(10,10))")
 <spt3g.maps.FlatSkyMap at 0x7fee41d26180>
 ```
 
+If you added the interface to a specific Julia project environment, you will also have to run
+
+```python 
+python> from julia import Pkg; Pkg.activate("/path/to/project")
+```
+
+before importing `CMBLensingSPT3GInterface`.
+
+
 CMBLensing.jl fields do not currently track their units. By default, the conversion always assumes that these fields are in μK units, and Fourier transforms are in 1/μK units. If instead the field is unitless (for the example, if the field represents a mask whose values may lie between 0 and 1), wrap the field in `unitless` before conversion, e.g.:
 
 
