@@ -139,7 +139,7 @@ function MapSpectrum2D(f::FlatFourier; units=nothing)
         0"""
     end
     Il = unfold(flipy(f).Il)[:,1:end÷2+1] * units
-    py"MapSpectrum2D($parent, $Il)"o
+    py"MapSpectrum2D($parent, $Il.copy(order='C'))"o
 end
 
 PyCall.PyObject(f::FlatFourier; kwargs...) = MapSpectrum2D(f; kwargs...)
