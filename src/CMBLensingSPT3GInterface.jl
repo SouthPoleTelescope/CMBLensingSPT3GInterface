@@ -52,7 +52,7 @@ end
 
 function get_θpix(f::PyObject)
     θpix = py"$f.res/G3Units.arcmin"
-    θpix ≈ round(Int,θpix) ? round(Int,θpix) : θ
+    θpix ≈ round(Int,θpix) ? round(Int,θpix) : θpix
 end
 
 
