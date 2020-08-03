@@ -21,8 +21,22 @@ and add the folder to your `PYTHONPATH`:
 export PYTHONPATH=/path/to/CMBLensingSPT3GInterface:$PYTHONPATH
 ```
 
+This last step may also be done in a Python session with
 
-You will need a working installation of [spt3g_software](https://github.com/SouthPoleTelescope/spt3g_software). Conversely, CMBLensing.jl will get installed automatically by the `dev` command above if you don't have it. 
+```python
+import sys; sys.path = ["/path/to/CMBLensingSPT3GInterface"] + sys.path
+```
+
+If you added the interface to a specific Julia project, you will also have to make sure that Python knows to use the correct project environment:
+
+```python 
+import os; os.environ["JULIA_PROJECT"] = "/path/to/project"
+```
+
+These steps must be done *before* importing the interface.
+
+
+You will need a working build of [spt3g_software](https://github.com/SouthPoleTelescope/spt3g_software). Conversely, CMBLensing.jl will get installed automatically by the `dev` command above if you don't have it. 
 
 ## Usage
 
@@ -35,33 +49,41 @@ This package makes it so any fields passed between Julia and Python are automati
 | FlatIEBFourier | MapSpectraTEB  |
 | Anything else  | dict           |
 
-This means, for example, you can create a `FlatSkyMap` in Python and pass it to Julia, where it arrives as a `FlatMap`:
+This means, for example, you can create a `FlatSkyMap` in Python and pass it to Julia, where it arrives as a `FlatMap`, or create a `FlatMap` in Julia and pass it to Python, where it arrives as a `FlatSkyMap`.
+
+### Julia Example
 
 ```julia
 julia> using CMBLensingSPT3GInterface
 
-julia> py"FlatSkyMap(np.rand(10,10))" 
-100-element FlatMap{10×10 map, 1′ pixels, fourier∂, Array{Float64,2}}
+julia> py"""
+       import numpy as np
+       from spt3g.maps import FlatSkyMap, MapProjection
+       from spt3g.core import G3Units
+       """
+       
+julia> f = py"FlatSkyMap(np.random.rand(10,10), res=2*G3Units.arcmin, proj=MapProjection.ProjZEA)"
+100-element FlatMap{10×10 map, 2′ pixels, fourier∂, Array{Float64,2}}:
 ...
+
+julia> py"type($f)"
+PyObject <class 'spt3g.maps.FlatSkyMap'>
+
 ```
 
-or the other way around, create the map in Julia and pass it to Python:
+### Python Example
 
 ```python
-python> from CMBLensingSPT3GInterface import jl
+In [1]: from CMBLensingSPT3GInterface import jl
 
-python> jl("FlatMap(rand(10,10))")
-<spt3g.maps.FlatSkyMap at 0x7fee41d26180>
+In [2]: f = jl("FlatMap(rand(10,10))"); f
+Out[2]: <spt3g.maps.FlatSkyMap at 0x7f7f370d2c30>
+
+In [3]: jl("typeof($f)") 
+Out[3]: <PyCall.jlwrap FlatMap{10×10 map, 1′ pixels, fourier∂, Array{Float64,2}}>
 ```
 
-If you added the interface to a specific Julia project environment, you will also have to run
-
-```python 
-python> from julia import Pkg; Pkg.activate("/path/to/project")
-```
-
-before importing `CMBLensingSPT3GInterface`.
-
+### Units
 
 CMBLensing.jl fields do not currently track their units. By default, the conversion always assumes that these fields are in μK units, and Fourier transforms are in 1/μK units. If instead the field is unitless (for the example, if the field represents a mask whose values may lie between 0 and 1), wrap the field in `unitless` before conversion, e.g.:
 
@@ -75,6 +97,12 @@ In the other direction, spt3g_software fields _do_ track their units (in `FlatSk
 
 
 ## Notes
+
+### Map Orientation
+
+`CMBLensing.plot()` defaults to `origin="upper"` which will result in maps flipped in the $y$ direction compared to plotting tools in spt3g_software, which default to `origin="lower"`. Pass `origin="lower"` to CMBLensing.plot() to make CMBLensing use the 3g software convention."
+
+### Method Redefinition Warning
 
 If you get a method redefinition warning (which is harmless, but annoying), you can get rid of it by doing 
 

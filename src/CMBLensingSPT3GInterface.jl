@@ -1,6 +1,6 @@
 module CMBLensingSPT3GInterface
 
-export FlatSkyMap, Frame, MapSpectraTEB, MapSpectrum2D, @py_str, unitless
+export FlatSkyMap, MapSpectrum2D, Frame, MapSpectraTEB, @py_str, unitless
 
 using PyCall
 using CMBLensing
@@ -18,6 +18,7 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
 """
 @init global μK = py"G3Units.uK"
 @init global Tcmb = py"G3TimestreamUnits.Tcmb"
+@init global ProjZEA = py"MapProjection.ProjZEA"
 
 
 Base.getindex(f::FlatField, s::String) = f[s == "T" ? :I : Symbol(s)]
@@ -39,7 +40,7 @@ function similar_FlatSkyMap(f::FlatField; units)
         y_len       = $Nside,
         res         = $θpix * G3Units.arcmin,
         weighted    = False,
-        proj        = MapProjection.ProjNone,
+        proj        = MapProjection.ProjZEA,
         flat_pol    = True,
         pol_conv    = MapPolConv.IAU,
         units       = None if $units == 1 else G3TimestreamUnits.Tcmb
@@ -62,6 +63,16 @@ struct Unitless{F}
     f::F
 end
 unitless(f) = Unitless(f)
+
+
+# warn about non-ZEA projections
+function check_proj(proj::Int)
+    proj != ProjZEA && @warn """
+        CMBLensing is only designed to handle ProjZEA maps. 
+        Using maps in other projections may violate assumptions made by CMBLensing, and if you convert back spt3g_software the projection will be changed to ProjZEA.
+        To remove this warning, you can set `flatskymap.proj = spt3g.maps.MapProjection.ProjZEA` before converting.
+        """
+end
 
 
 
@@ -91,7 +102,8 @@ PyCall.PyObject(u::Unitless{<:FlatMap}) = FlatSkyMap(u.f, units=1)
 
 function CMBLensing.FlatMap(f::PyObject; units=nothing)
     if pyisinstance(f, py"FlatSkyMap")
-        if units == nothing
+        check_proj(f.proj)
+        if units === nothing
             units = (py"$f.units" == Tcmb) ? μK : 1
         end
         FlatMap(py"np.asarray($f)" / units, θpix=get_θpix(f))
@@ -135,6 +147,7 @@ PyCall.PyObject(u::Unitless{<:FlatFourier}) = MapSpectrum2D(u.f, units=1)
 
 function CMBLensing.FlatFourier(f::PyObject; units=nothing)
     if pyisinstance(f, py"MapSpectrum2D")
+        check_proj(f.parent.proj)
         if units == nothing
             units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
