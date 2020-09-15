@@ -258,14 +258,10 @@ Base.convert(::Type{FlatIEBFourier}, f::PyObject) = FlatIEBFourier(f)
 # https://github.com/JuliaPy/PyCall.jl/pull/792 is merged
 
 using Pkg
-using PyCall: TypeTuple, pytype_queries, pyint_query, npy_bool, 
-    pyfloat_query, pycomplex_query, pystring_query, pyfunction_query, 
-    pydate_query, pydict_query, pyptr_query, pysequence_query, 
-    pynothing_query, pymp_query, @return_not_None
 
-if Pkg.dependencies()[Base.PkgId(PyCall).uuid].git_revision != "pytype_mapping_prec"
+@init if Pkg.dependencies()[Base.PkgId(PyCall).uuid].git_revision != "pytype_mapping_prec"
 
-    function PyCall.pytype_query(o::PyObject, default::TypeTuple=PyObject)
+    @eval PyCall function pytype_query(o::PyObject, default::TypeTuple=PyObject)
         # TODO: Use some kind of hashtable (e.g. based on PyObject_Type(o)).
         #       (A bit tricky to correctly handle Tuple and other containers.)
         for (py,jl) in pytype_queries
