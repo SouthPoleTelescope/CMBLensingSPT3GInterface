@@ -12,7 +12,6 @@ then from the Julia package prompt run:
 
 ```
 pkg> dev /path/to/CMBLensingSPT3GInterface
-pkg> add https://github.com/marius311/PyCall.jl#pytype_mapping_prec
 ```
 
 and add the folder to your `PYTHONPATH`:
@@ -101,13 +100,3 @@ In the other direction, spt3g_software fields _do_ track their units (in `FlatSk
 ### Map Orientation
 
 `CMBLensing.plot()` defaults to `origin="upper"` which will result in maps flipped in the $y$ direction compared to plotting tools in spt3g_software, which default to `origin="lower"`. Pass `origin="lower"` to CMBLensing.plot() to make CMBLensing use the 3g software convention."
-
-### Method Redefinition Warning
-
-If you get a method redefinition warning (which is harmless, but annoying), you can get rid of it by doing 
-
-```
-pkg> add https://github.com/marius311/PyCall.jl#pytype_mapping_prec
-```
-
-into the environment where you're using this package from (this was included in the install instructions above).
