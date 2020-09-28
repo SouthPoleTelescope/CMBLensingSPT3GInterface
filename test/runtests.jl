@@ -18,7 +18,13 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
     @test py"isinstance($(   Fourier(f[:I])), MapSpectrum2D)"
     @test py"isinstance($(IEBFourier(f)),     MapSpectraTEB)"
     @test py"isinstance($(    IQUMap(f)),     dict)"
+
     
+    # make sure the type is the same after a roundtrip
+    # (this checks if autoconvert is failing silently)
+    @test py"$(Map(f[:I]))" isa FlatMap
+    @test py"$(Fourier(f[:I]))" isa FlatFourier
+
     # the field is unchanged after a roundtrip jl -> py -> jl, 
     # both when converted in μK units:
     @test py"$(       Map(f[:I]))" ≈        Map(f[:I])
