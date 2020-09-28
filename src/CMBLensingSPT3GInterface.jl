@@ -147,7 +147,7 @@ PyCall.PyObject(u::Unitless{<:FlatFourier}) = MapSpectrum2D(u.f, units=1)
 
 function CMBLensing.FlatFourier(f::PyObject; units=nothing)
     if pyisinstance(f, py"MapSpectrum2D")
-        check_proj(f.parent.proj)
+        check_proj(py"$f.parent.proj")
         if units == nothing
             units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
