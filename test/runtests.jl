@@ -9,6 +9,7 @@ from spt3g.maps import FlatSkyMap
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D
 from spt3g.mapspectra.basicmaputils import map_to_ft
 from spt3g.lensing.map_spec_utils import MapSpectraTEB
+from numpy.testing import assert_allclose
 """
 
 @testset "Conversions (Nside=$Nside)" for Nside=[32,33]
@@ -47,6 +48,10 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
 
     # applying units
     @test py"$(FlatSkyMap(Map(f[:I]), units=μK^2))" ≈ Map(py"$(MapSpectrum2D(Fourier(f[:I]), units=μK^2))")
+    @test py"$(Map(f[:I])) * $μK**2"                ≈ Map(py"$(Fourier(f[:I]))            * $μK**2")
+    @test py"$(Map(f[:I])) * $μK**2"                ≈     py"$(Fourier(f[:I])).get_rmap() * $μK**2"
+    @test py"$(unitless(Map(f[:I]))) * $μK**2"      ≈ Map(py"$(unitless(Fourier(f[:I])))            * $μK**2")
+    @test py"$(unitless(Map(f[:I]))) * $μK**2"      ≈     py"$(unitless(Fourier(f[:I]))).get_rmap() * $μK**2"
 
     # bad conversions throw custom errors
     @test_throws ErrorException    FlatFourier(PyObject(f))
