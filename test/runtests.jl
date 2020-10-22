@@ -1,11 +1,13 @@
 using CMBLensing
 using CMBLensingSPT3GInterface
+import CMBLensingSPT3GInterface: μK
 using PyCall
 using Test
 
 py"""
 from spt3g.maps import FlatSkyMap
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D
+from spt3g.mapspectra.basicmaputils import map_to_ft
 from spt3g.lensing.map_spec_utils import MapSpectraTEB
 """
 
@@ -29,13 +31,22 @@ from spt3g.lensing.map_spec_utils import MapSpectraTEB
     # both when converted in μK units:
     @test py"$(       Map(f[:I]))" ≈        Map(f[:I])
     @test py"$(   Fourier(f[:I]))" ≈    Fourier(f[:I])
+    @test py"$(   Fourier(f[:I]))" ≈    Fourier(f[:I])
     @test py"$(IEBFourier(f))"     ≈ IEBFourier(f)
     @test py"$(    IQUMap(f))"     ≈     IQUMap(f)
+
     # or unitless:
     @test py"$(unitless(       Map(f[:I])))" ≈        Map(f[:I])
     @test py"$(unitless(   Fourier(f[:I])))" ≈    Fourier(f[:I])
     @test py"$(unitless(IEBFourier(f)))"     ≈ IEBFourier(f)
     @test py"$(unitless(    IQUMap(f)))"     ≈     IQUMap(f)
+
+    # cross-basis on spt3g_software side
+    @test py"$(Fourier(f[:I])).get_rmap()" ≈ Map(f[:I])
+    @test py"map_to_ft($(Map(f[:I])))"     ≈ Fourier(f[:I])
+
+    # applying units
+    @test py"$(FlatSkyMap(Map(f[:I]), units=μK^2))" ≈ Map(py"$(MapSpectrum2D(Fourier(f[:I]), units=μK^2))")
 
     # bad conversions throw custom errors
     @test_throws ErrorException    FlatFourier(PyObject(f))
