@@ -126,15 +126,9 @@ Base.convert(::Type{FlatMap}, f::PyObject) = FlatMap(f)
 
 Convert a CMBLensing FlatFourier to a 3G MapSpectrum2D. 
 """
-function MapSpectrum2D(f::FlatFourier; units=nothing)
+function MapSpectrum2D(f::FlatFourier; units=μK)
     parent = similar_FlatSkyMap(f, units=units)
-    if units == nothing
-        units = 1/py"get_fft_scale_fac(parent=$parent)"
-        py"""
-        parent.units = G3TimestreamUnits.Tcmb
-        0"""
-    end
-    Il = unfold(f.Il)[:,1:end÷2+1] * units
+    Il = unfold(f.Il)[:,1:end÷2+1] * units / py"get_fft_scale_fac(parent=$parent)"
     py"MapSpectrum2D($parent, $Il.copy(order='C'))"o
 end
 
