@@ -4,7 +4,7 @@ export FlatSkyMap, MapSpectrum2D, Frame, MapSpectraTEB, @py_str, unitless
 
 using PyCall
 using CMBLensing
-using CMBLensing: unfold, FlatIEB, FlatIQU
+using CMBLensing: FlatIEB, FlatIQU
 using AbstractFFTs
 using Lazy
 
@@ -134,7 +134,7 @@ function MapSpectrum2D(f::FlatFourier; units=nothing)
         parent.units = G3TimestreamUnits.Tcmb
         0"""
     end
-    Il = unfold(f.Il)[:,1:end÷2+1] * units
+    Il = f[:Il, full_plane=true][:,1:end÷2+1] * units
     py"MapSpectrum2D($parent, $Il.copy(order='C'))"o
 end
 
