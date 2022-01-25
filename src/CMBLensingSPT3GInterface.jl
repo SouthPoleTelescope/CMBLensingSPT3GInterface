@@ -2,15 +2,16 @@ module CMBLensingSPT3GInterface
 
 export FlatSkyMap, MapSpectrum2D, Frame, MapSpectraTEB, @py_str, unitless
 
-using PyCall
-using CMBLensing
-using CMBLensing: FlatIEB, FlatIQU
 using AbstractFFTs
+using CMBLensing
+using CMBLensing: FlatIEB, FlatIQU, basis, SpatialBasis
+using DataStructures
 using Lazy
+using PyCall
 
 @init py"""
 import numpy as np
-from spt3g.core import G3Units, G3TimestreamUnits
+from spt3g.core import G3Units, G3TimestreamUnits, G3Frame
 from spt3g.maps import MapProjection, FlatSkyMap, MapPolConv
 from spt3g.mapspectra.map_spectrum_classes import MapSpectrum2D, MapSpectrum1D
 from spt3g.mapspectra.basicmaputils import get_fft_scale_fac, map_to_ft
@@ -32,12 +33,12 @@ populated with pixel values or passed to a MapSpectrum as the "parent".
 """
 function similar_FlatSkyMap(f::FlatField; units)
 
-    @unpack Nside, θpix = fieldinfo(f)
+    @unpack Ny, Nx, θpix = fieldinfo(f)
 
     py"""
     parent = FlatSkyMap(
-        x_len       = $Nside,
-        y_len       = $Nside,
+        x_len       = $Nx,
+        y_len       = $Ny,
         res         = $θpix * G3Units.arcmin,
         weighted    = False,
         proj        = MapProjection.ProjZEA,
@@ -152,7 +153,7 @@ function CMBLensing.FlatFourier(f::PyObject; units=nothing)
             units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
         Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / units
-        FlatFourier(Il, θpix=get_θpix(py"$f.parent"o))
+        FlatFourier(Il, θpix=get_θpix(py"$f.parent"o), Ny=py"$f.parent.shape[1]")
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
     end
@@ -165,15 +166,15 @@ Base.convert(::Type{FlatFourier}, f::PyObject) = FlatFourier(f)
 ### Union{FlatS2,FlatS02} <--> Frame
 ####################################
 
-F_pykey_mapping = Dict(
-    FlatQUFourier   =>      ("Q", "U"),
-    FlatQUMap       =>      ("Q", "U"),
-    FlatEBFourier   =>      ("E", "B"),
-    FlatEBMap       =>      ("E", "B"),
+F_pykey_mapping = OrderedDict(
     FlatIQUFourier  => ("T", "Q", "U"),
     FlatIQUMap      => ("T", "Q", "U"),
     FlatIEBFourier  => ("T", "E", "B"),
-    FlatIEBMap      => ("T", "E", "B")
+    FlatIEBMap      => ("T", "E", "B"),
+    FlatQUFourier   =>      ("Q", "U"),
+    FlatQUMap       =>      ("Q", "U"),
+    FlatEBFourier   =>      ("E", "B"),
+    FlatEBMap       =>      ("E", "B")
 )
 function pykeys(f::Union{FlatS2,FlatS02})
     for (F,pykeys) in F_pykey_mapping
@@ -198,7 +199,7 @@ function Frame(f::Union{FlatS2,FlatS02}, keys=pykeys(f); kwargs...)
     frame
 end
 
-# FlatIEBFourier is the only FieldTuple-like object which has a
+# FlatIEBFourier is the only FlatField-like object which has a
 # corresponding type on the 3G side (ie a MapSpectraTEB)
 PyCall.PyObject(f::FlatIEBFourier; kwargs...)  = MapSpectraTEB(f; kwargs...)
 PyCall.PyObject(u::Unitless{<:FlatIEBFourier}) = MapSpectraTEB(u.f, units=1)
@@ -211,12 +212,13 @@ PyCall.PyObject(u::Unitless{<:Union{FlatS2,FlatS02}}) = Frame(u.f, units=1)
 
 # note: we are stealing the pytype_mapping for _all_ dicts here, so make sure to
 # fall back to default behavior if the dict wasn't actually a frame, i.e. didn't
-# contain any 3G field objects.
-@init pytype_mapping(py"dict", FieldTuple)
-function Base.convert(::Type{FieldTuple}, frame::PyObject)
+# contain 3G field objects with the right keys
+@init pytype_mapping(py"dict", FlatField)
+@init pytype_mapping(py"G3Frame", FlatField)
+function Base.convert(::Type{FlatField}, frame::PyObject)
     for (F, pykeys) in F_pykey_mapping
-        F3G = (F <: FlatFieldMap) ? py"FlatSkyMap" : py"MapSpectrum2D"
-        if py"all(type(f) == $F3G for f in $frame.values())" && py"sorted($frame) == sorted($pykeys)"
+        F3G = (basis(F) <: SpatialBasis{Map}) ? py"FlatSkyMap" : py"MapSpectrum2D"
+        if py"all(type($frame.get(k,None)) == $F3G for k in $pykeys)"
             return F(py"[$frame[k] for k in $pykeys]"...)
         end
     end
