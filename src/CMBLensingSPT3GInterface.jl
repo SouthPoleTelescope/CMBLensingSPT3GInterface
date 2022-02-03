@@ -153,7 +153,7 @@ function CMBLensing.FlatFourier(f::PyObject; units=nothing)
             units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
         Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / units
-        FlatFourier(Il, θpix=get_θpix(py"$f.parent"o), Ny=py"$f.parent.shape[1]")
+        FlatFourier(Il, θpix=get_θpix(py"$f.parent"o), Ny=py"$f.parent.shape[0]")
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
     end
