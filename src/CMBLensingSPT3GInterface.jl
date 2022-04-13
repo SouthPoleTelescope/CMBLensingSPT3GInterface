@@ -33,18 +33,20 @@ populated with pixel values or passed to a MapSpectrum as the "parent".
 """
 function similar_FlatSkyMap(f::FlatField; units)
 
-    @unpack Ny, Nx, θpix = fieldinfo(f)
+    @unpack Ny, Nx, θpix, rotator = fieldinfo(f)
+    rotator[1] == rotator[3] == 0 || @error("rotator != (0, x, 0) not yet handled.")
 
     py"""
     parent = FlatSkyMap(
-        x_len       = $Nx,
-        y_len       = $Ny,
-        res         = $θpix * G3Units.arcmin,
-        weighted    = False,
-        proj        = MapProjection.ProjZEA,
-        flat_pol    = True,
-        pol_conv    = MapPolConv.IAU,
-        units       = None if $units == 1 else G3TimestreamUnits.Tcmb
+        x_len        = $Nx,
+        y_len        = $Ny,
+        res          = $θpix * G3Units.arcmin,
+        delta_center = $(deg2rad(rotator[2]-90)),
+        weighted     = False,
+        proj         = MapProjection.ProjZEA,
+        flat_pol     = True,
+        pol_conv     = MapPolConv.IAU,
+        units        = None if $units == 1 else G3TimestreamUnits.Tcmb
     )"""
 
     py"parent"o
@@ -52,9 +54,12 @@ function similar_FlatSkyMap(f::FlatField; units)
 end
 
 
-function get_θpix(f::PyObject)
+function get_proj_kwargs(f::PyObject)
     θpix = py"$f.res/G3Units.arcmin"
-    θpix ≈ round(Int,θpix) ? round(Int,θpix) : θpix
+    θpix = θpix ≈ round(Int,θpix) ? round(Int,θpix) : θpix
+    py"$f.alpha_center" == 0 || @error("alpha_center != 0 not yet handled.") 
+    rotator = (0., 90 + rad2deg(py"$f.delta_center"), 0.)
+    (; θpix, rotator)
 end
 
 
@@ -107,7 +112,7 @@ function CMBLensing.FlatMap(f::PyObject; units=nothing)
         if units === nothing
             units = (py"$f.units" == Tcmb) ? μK : 1
         end
-        FlatMap(py"np.asarray($f)" / units, θpix=get_θpix(f))
+        FlatMap(py"np.asarray($f)" / units; get_proj_kwargs(f)...)
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatMap.")
     end
@@ -153,7 +158,7 @@ function CMBLensing.FlatFourier(f::PyObject; units=nothing)
             units = (py"$f.parent.units" == Tcmb) ? 1/py"get_fft_scale_fac(parent=$f.parent)" : 1
         end
         Il = py"np.asarray($f.get_complex())"[1:end÷2+1,:] / units
-        FlatFourier(Il, θpix=get_θpix(py"$f.parent"o), Ny=py"$f.parent.shape[0]")
+        FlatFourier(Il; get_proj_kwargs(py"$f.parent"o)..., Ny=py"$f.parent.shape[0]")
     else
         error("Can't convert a Python object of type $(pytypeof(f)) to a FlatFourier.")
     end
